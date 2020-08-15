@@ -12,4 +12,6 @@ In the directory `code`:
 - `julia extractCLDF.jl dev` convert the development data to CLDF format
 - `julia extractCLDF.jl test` convert the test data to CLDF format
 - `julia imputeASJP.jl`: merging the WALS data with ASJP data and identifying proxies for languages without a corresponding ASJP doculect
-- 
+- `julia fitKNN.jl`: estimate the optimal value for $k$ in $k$-nearest neighbor classification
+- `julia finalModel.jl`: perform the data imputation task
+- `julia wrapup.jl`: reformat the prediction to the format required by the Shared Task

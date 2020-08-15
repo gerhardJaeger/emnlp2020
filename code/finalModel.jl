@@ -7,14 +7,11 @@ using CSV
 using DataFrames
 using Pipe
 using Plots
-# using Statistics
-# using Random
-# using StatsBase
+using StatsBase
 using StatsPlots
 using Distances
 using ProgressMeter
-# using Distributions
-# using DataStructures
+using DataStructures
 using RCall
 
 train = CSV.File("../data/trainImputed.cldf.csv") |> DataFrame!

@@ -1,39 +1,46 @@
 using Pkg; Pkg.activate(pwd()); Pkg.instantiate()
 
-using CSV, 
-    DataFrames, 
-    Pipe, 
-    Plots, 
-    Statistics, 
-    Random, 
-    StatsBase, 
-    StatsPlots, 
+using CSV,
+    DataFrames,
+    Pipe,
+    Plots,
+    Statistics,
+    Random,
+    StatsPlots,
     Distances,
     ProgressMeter,
-    Distributions,
-    DataStructures,
-    RCall
+    Distributions
+
 
 kfold = 20
 Random.seed!(12345);
 
 
-languages = readlines("languages.csv")
-d = CSV.File("../data/train.cldf.csv") |> DataFrame!
+#languages = readlines("languages.csv")
+d = CSV.File("../data/trainImputed.cldf.csv") |> DataFrame!
 d = dropmissing(d, :ASJP)
-d = filter(x -> x.wals_code ∈ languages, d)
+#d = filter(x -> x.wals_code ∈ languages, d)
 
 n = nrow(d)
 languages = unique(d.wals_code)
 features = unique(d.feature)
-families = @pipe d |> 
+families = @pipe d |>
                 dropmissing(_,:glotFam) |>
                 unique(_,:glotFam) |> _.glotFam
 
 d.languageIndex = indexin(d.wals_code, languages)
 d.featureIndex = indexin(d.feature, features)
 d.familyIndex = indexin(d.glotFam, families)
-;
+
+lfvDict = Dict(zip(zip(d.wals_code, d.feature), d.value))
+
+fMatrix = zeros(Int, length(languages), length(features))
+for (j, f) in enumerate(features), (i, l) in enumerate(languages)
+    if (l, f) in keys(lfvDict)
+        fMatrix[i, j] = lfvDict[l, f]
+    end
+end
+
 
 
 function createTestsets(n = n, kfold = kfold)
@@ -56,7 +63,7 @@ end
 test = sample(subsets)
 model = (1:n)[Not(test)]
 i = test[1]
-;
+
 
 meanEarthRadius = 6372.
 
@@ -69,7 +76,6 @@ function getCoordinates(languages=languages, d=d)
     coorDict
 end
 coorDict = getCoordinates()
-;
 
 function getDistances(
     languages = languages,
@@ -89,7 +95,7 @@ function getDistances(
     gdist
 end
 gdist = getDistances()
-;
+
 
 dstMtx = zeros(length(languages), length(languages))
 for (i, l1) in enumerate(languages)
@@ -119,26 +125,18 @@ end
 
 
 
-ev = DataFrame(model=m, accuracy=a, testset=t, k=kk)
-evDF = combine(:accuracy => mean, groupby(ev, :k))
-theme(:vibrant)
 
-@df evDF plot(:k, :accuracy_mean, legend=false)
-xlabel!("k")
-ylabel!("accuracy")
-
-m,a,t, kk = Int64[], Float64[], Int64[], Int64[]
+a,t, kk = Float64[], Int64[], Int64[]
 @showprogress for k = 1:20
     acc = zeros(kfold)
     for i = 1:kfold
-        test = subsets[i]
+        tst = subsets[i]
         model = (1:n)[Not(test)]
         try
-            acc[i] = mean(predict(test, model, k) .== d.value[test])
+            acc[i] = mean(predict(tst, model, k) .== d.value[tst])
         catch e
             println(i)
         end
-        push!(m, 5)
         push!(a, acc[i])
         push!(t, i)
         push!(kk,k)
@@ -146,4 +144,25 @@ m,a,t, kk = Int64[], Float64[], Int64[], Int64[]
     accuracy = mean(acc)
 end
 
+
+ev = DataFrame(accuracy=a, testset=t, k=kk)
+evDF = combine(:accuracy => mean, groupby(ev, :k))
+
+maxK = evDF.k[argmax(evDF.accuracy_mean)]
 @show maxK
+
+
+theme(:vibrant)
+
+ft1 = Plots.font(18)
+ft2 = Plots.font(15)
+
+@df evDF plot(:k, :accuracy_mean, legend=false,
+    guidefont=ft1, tickfont=ft2,
+)
+xlabel!("k")
+ylabel!("accuracy")
+
+title!(" ")
+
+savefig("knnOptimization.pdf")

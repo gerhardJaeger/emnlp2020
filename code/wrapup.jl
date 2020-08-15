@@ -4,11 +4,11 @@ Pkg.instantiate();
 
 using CSV, DataFrames, Pipe
 
-testData = CSV.File("testpredictions.csv") |> DataFrame
+testData = CSV.File("testpredictions.csv") |> DataFrame!
 
 
-trainingData = CSV.File("../data/train.cldf.csv") |> DataFrame
-devData = CSV.File("../data/dev.cldf.csv") |> DataFrame
+trainingData = CSV.File("../data/train.cldf.csv") |> DataFrame!
+devData = CSV.File("../data/dev.cldf.csv") |> DataFrame!
 
 d = vcat(trainingData, devData, testData[:, names(trainingData)])
 filter!(x -> x.value != 0, d)

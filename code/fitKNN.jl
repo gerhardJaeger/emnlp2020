@@ -130,10 +130,10 @@ a,t, kk = Float64[], Int64[], Int64[]
 @showprogress for k = 1:20
     acc = zeros(kfold)
     for i = 1:kfold
-        tst = subsets[i]
-        model = (1:n)[Not(test)]
+        local test = subsets[i]
+        local model = (1:n)[Not(test)]
         try
-            acc[i] = mean(predict(tst, model, k) .== d.value[tst])
+            acc[i] = mean(predict(test, model, k) .== d.value[test])
         catch e
             println(i)
         end

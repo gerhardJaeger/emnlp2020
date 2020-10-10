@@ -67,7 +67,7 @@ end
 
 @rlibrary phytools
 
-pth = ENV["HOME"] * "/projects/research/asjp18characters/validation/worldTree/"
+pth = "../data/"
 
 worldTree = midpoint_root(read_newick(pth * "RAxML_bestTree.world_sc_ccGlot"))
 

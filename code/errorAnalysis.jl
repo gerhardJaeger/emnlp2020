@@ -59,19 +59,19 @@ rename!(famSizeAccuracy, :nrow => :size, :y_mean => :accuracy)
 
 
 #---
-#
-# R"
-# library(ggplot2)
-# dat <- $famSizeAccuracy
-# ggplot(dat, aes(size, accuracy)) +
-#       geom_point() +
-#       scale_x_log10() +
-#       geom_smooth(method='gam') +
-#       theme(axis.text=element_text(size=10),
-#         axis.title=element_text(size=14))
-# ggsave('accuracyFamilySize.pdf')
-# "
-# load("accuracyFamilySize.pdf")
+
+R"
+library(ggplot2)
+dat <- $famSizeAccuracy
+ggplot(dat, aes(size, accuracy)) +
+      geom_point() +
+      scale_x_log10() +
+      geom_smooth(method='gam') +
+      theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=14))
+ggsave('accuracyFamilySize.pdf')
+"
+load("accuracyFamilySize.pdf")
 #
 #---
 
@@ -82,113 +82,69 @@ featureFreqAccuracy = innerjoin(featureFreq, featureAccuracy, on=:featureIndex)
 rename!(featureFreqAccuracy, :nrow => :freq, :y_mean => :accuracy)
 
 #---
+
+R"
+library(ggplot2)
+dat <- $featureFreqAccuracy
+ggplot(dat, aes(freq, accuracy)) +
+      geom_point() +
+      scale_x_log10() +
+      geom_smooth(method='gam') +
+      theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=14),
+        plot.margin = margin(10, 20, 10, 10))
+ggsave('accuracyFeatureFreq.pdf')
+"
+load("accuracyFeatureFreq.pdf")
 #
-# R"
-# library(ggplot2)
-# dat <- $featureFreqAccuracy
-# ggplot(dat, aes(freq, accuracy)) +
-#       geom_point() +
-#       scale_x_log10() +
-#       geom_smooth(method='gam') +
-#       theme(axis.text=element_text(size=10),
-#         axis.title=element_text(size=14),
-#         plot.margin = margin(10, 20, 10, 10))
-# ggsave('accuracyFeatureFreq.pdf')
-# "
-# load("accuracyFeatureFreq.pdf")
-#
 #---
 
-model = Model(
-    y = Stochastic(
-        1,
-        (n, μ) -> UnivariateDistribution[Bernoulli(invlogit(μ[i])) for i = 1:n],
-        false,
-    ),
-    μ = Logical(
-        1,
-        (α, β1, β2, r1, r2, fmi, fti, n, logFamilySize, logFeatureFreq) -> [
-            α + β1 * logFamilySize[i] + β2 * logFeatureFreq[i] + r1[fmi[i]] + r2[fti[i]]
-            for i = 1:n
-        ],
-        false,
-    ),
-    α = Stochastic(
-        () -> Normal(0, 100)
-    ),
-    β1 = Stochastic(
-        () -> Normal(0, 100)
-    ),
-    β2 = Stochastic(
-        () -> Normal(0, 100)
-    ),
-    r1 = Stochastic(1,
-        (s1, nFamilies) -> MvNormal(zeros(nFamilies), s1)
-    ),
-    r2 = Stochastic(1,
-        (s2, nFeatures) -> MvNormal(zeros(nFeatures), s2)
-    ),
-    s1 = Stochastic(
-        () -> InverseGamma(0.001, 0.001)
-    ),
-    s2 = Stochastic(
-        () -> InverseGamma(0.001, 0.001)
-    ),
-)
+function featureEntropy(x)
+    vals = unique(x)
+    probs = [mean(x .== v) for v in vals]
+    -probs' * log2.(probs)
+end
+
+
+
 
 #---
 
-line = Dict{Symbol, Any}(
-    :y => d.y,
-    :n => size(d,1),
-    :nFamilies => length(unique(d.familyIndex)),
-    :nFeatures => length(unique(d.featureIndex)),
-    :fmi => d.familyIndex,
-    :fti => d.featureIndex,
-    :logFamilySize => log.(d.famSize),
-    :logFeatureFreq => log.(d.featureFreq)
-)
-#---
+d = @pipe d |> select(_, [:feature, :value]) |>
+    unique |>
+    groupby(_, :feature) |>
+    combine(_, :value => featureEntropy => :entropy) |>
+    innerjoin(d, _ , on=:feature)
 
-inits = [
-    Dict{Symbol, Any}(
-        :y => d.y,
-        :n => size(d,1),
-        :nFamilies => length(unique(d.familyIndex)),
-        :nFeatures => length(unique(d.featureIndex)),
-        :fmi => d.familyIndex,
-        :fti => d.featureIndex,
-        :logFamilySize => log.(d.famSize),
-        :logFeatureFreq => log.(d.featureFreq),
-        :α => 0.,
-        :β1 => 0.,
-        :β2 => 0.,
-        :r1 => zeros(line[:nFamilies]),
-        :r2 => zeros(line[:nFeatures]),
-        :s1 => 1.,
-        :s2 => 1.,
-    )
-    for c in 1:2
-]
+
+dat = @pipe d |>
+      groupby(_, :featureIndex) |>
+      combine(_, :y => mean, :entropy) |>
+      rename!(_, :y_mean => :accuracy)
+
+#---
+R"
+library(ggplot2)
+dat <- $dat
+ggplot(dat, aes(entropy, accuracy)) +
+      geom_point() +
+      geom_smooth(method='lm') +
+      theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=14),
+        plot.margin = margin(10, 20, 10, 10))
+ggsave('accuracyNvalues.pdf')
+"
+load("accuracyNvalues.pdf")
+
+
 
 #---
 
-scheme = [
-    Slice([:α, :β1, :β2, :s1, :s2], 3.0),
-    Slice([:r1, :r2], 3.0)
-]
-
-setsamplers!(model, scheme)
-
-#---
-
-sim = mcmc(model, line, inits, 21000, burnin=1000, thin=10, chains=2)
-
-#---
-
-@show gelmandiag(sim)
-
-#---
-
-p = Mamba.plot(sim)
-draw(p, ask=false)
+R"
+library(rstan)
+library(brms)
+dat = $d
+fit = brm(y ~ entropy + featureFreq + famSize + (1|glotFam) + (1|feature),
+      data=dat, family=bernoulli)
+summary(fit)
+"

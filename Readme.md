@@ -4,6 +4,8 @@ This repository contains data and code accompanying the paper "Imputing typologi
 
 All scripts were developed with Julia v1.5.0. You need an R installation (I used version 3.6.3) with the libraries `phytools` and `ape` installed.
 
+For the error analysis, you also need the R-packages `rstan` and `brms` to be installed.
+
 ## Workflow
 
 In the directory `code`:
@@ -15,3 +17,5 @@ In the directory `code`:
 - `julia fitKNN.jl`: estimate the optimal value for $k$ in $k$-nearest neighbor classification
 - `julia finalModel.jl`: perform the data imputation task
 - `julia wrapup.jl`: reformat the prediction to the format required by the Shared Task
+- `julia kfoldPrediction.jl` performs a 20-fold cross-validation
+- `julia errorAnalysis.jl` performs the error analysis described in the paper

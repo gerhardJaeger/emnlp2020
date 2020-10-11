@@ -8,11 +8,10 @@ using CSV
 using DataFrames
 using StatsPlots
 using Pipe
-using ProgressMeter
+using StatsBase
 using StatsFuns
 using RCall
 using Images
-using Mamba
 
 #---
 d = CSV.read("../data/kfoldPredictions.csv", DataFrame)
@@ -105,13 +104,9 @@ function featureEntropy(x)
     -probs' * log2.(probs)
 end
 
-
-
-
 #---
 
-d = @pipe d |> select(_, [:feature, :value]) |>
-    unique |>
+d = @pipe d |>
     groupby(_, :feature) |>
     combine(_, :value => featureEntropy => :entropy) |>
     innerjoin(d, _ , on=:feature)
@@ -120,6 +115,7 @@ d = @pipe d |> select(_, [:feature, :value]) |>
 dat = @pipe d |>
       groupby(_, :featureIndex) |>
       combine(_, :y => mean, :entropy) |>
+      unique(_, :featureIndex) |>
       rename!(_, :y_mean => :accuracy)
 
 #---
@@ -128,23 +124,37 @@ library(ggplot2)
 dat <- $dat
 ggplot(dat, aes(entropy, accuracy)) +
       geom_point() +
-      geom_smooth(method='lm') +
+      geom_smooth(method='gam') +
+      xlab('feature entropy') +
       theme(axis.text=element_text(size=10),
         axis.title=element_text(size=14),
         plot.margin = margin(10, 20, 10, 10))
-ggsave('accuracyNvalues.pdf')
+ggsave('accuracyEntropy.pdf')
 "
-load("accuracyNvalues.pdf")
+load("accuracyEntropy.pdf")
 
 
 
 #---
+R"
+library(lme4)
+dat = $d
+dat$y = factor(dat$y)
+fit = glmer(y ~ entropy + log10(featureFreq) + log10(famSize) + (1|glotFam) + (1|feature),
+      data=dat, family=binomial(logit))
+summary(fit)
+"
 
+
+
+#---
 R"
 library(rstan)
 library(brms)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
 dat = $d
-fit = brm(y ~ entropy + featureFreq + famSize + (1|glotFam) + (1|feature),
+fit = brm(y ~ entropy + log10(featureFreq) + log10(famSize) + (1|glotFam) + (1|feature),
       data=dat, family=bernoulli)
 summary(fit)
 "
